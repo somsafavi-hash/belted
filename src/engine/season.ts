@@ -72,7 +72,7 @@ function matchDuel(l: League, m: MajorMatch, now: number, rng: Rng): Duel {
   const d: Duel = {
     id: uid(), challengerId: m.a, opponentId: m.b, type: 'trivia', categoryId: 'trivia',
     title: m.round === 'final' ? 'Major final' : 'Major semifinal', stakes: 0, status: 'accepted',
-    createdAt: now, expiresAt: now + 3 * DAY, major: true, trivia: { questionIds: pickQuestions(rng), answers: {} },
+    createdAt: now, expiresAt: Math.max(now + DAY, monthEnd(now)), major: true, trivia: { questionIds: pickQuestions(rng), answers: {} },
   };
   l.duels.push(d);
   m.duelId = d.id;
@@ -105,27 +105,42 @@ export function startMajor(l: League, now: number, rng: Rng = Math.random): void
   for (const m of s.major.matches) prepMatch(l, m, now, rng);
 }
 
+/** Last moment of the month `now` is in. Bracket matches must be played by then. */
+export function monthEnd(now: number): number {
+  const d = new Date(now);
+  return new Date(d.getFullYear(), d.getMonth() + 1, 1).getTime() - 1;
+}
+
 function prepMatch(l: League, m: MajorMatch, now: number, rng: Rng) {
-  const me = l.meId;
-  if (m.a === me || m.b === me) {
-    const d = matchDuel(l, m, now, rng);
-    // The bot side answers right away.
-    const bot = m.a === me ? m.b : m.a;
-    const skill = l.members.find((x) => x.id === bot)!.skill;
-    d.trivia!.answers[bot] = botAnswers(d.trivia!.questionIds, skill, rng);
-  } else {
+  const a = l.members.find((x) => x.id === m.a)!;
+  const b = l.members.find((x) => x.id === m.b)!;
+  if (a.isBot && b.isBot) {
     m.winnerId = simulate(l, m, rng);
+    return;
   }
+  // A real player is in it: it's a trivia duel. Demo bots answer right away.
+  const d = matchDuel(l, m, now, rng);
+  for (const p of [a, b]) if (p.isBot) d.trivia!.answers[p.id] = botAnswers(d.trivia!.questionIds, p.skill, rng);
 }
 
 /** Moves the bracket forward when matches finish. */
 export function advanceMajor(l: League, now: number, rng: Rng = Math.random): void {
-  const s = currentSeason(l, now) ?? l.seasons[l.seasons.length - 1];
+  // The bracket can finish after the month rolls over, so look for any unfinished one.
+  const s = l.seasons.find((x) => x.major && !x.major.done);
   const mj = s?.major;
-  if (!mj || mj.done) return;
+  if (!s || !mj) return;
   for (const m of mj.matches) {
     if (m.winnerId || !m.duelId) continue;
     const d = l.duels.find((x) => x.id === m.duelId);
+    if (d && d.status === 'accepted' && now > d.expiresAt) {
+      // Time's up: whoever played wins; if nobody did, the higher seed goes through.
+      const playedA = !!d.trivia?.answers[m.a];
+      const playedB = !!d.trivia?.answers[m.b];
+      const forfeitWinner = playedA !== playedB ? (playedA ? m.a : m.b) : mj.seeds.indexOf(m.a) < mj.seeds.indexOf(m.b) ? m.a : m.b;
+      d.status = 'settled';
+      d.settledAt = d.expiresAt;
+      d.winnerId = forfeitWinner;
+    }
     if (d?.status === 'settled') {
       // A drawn bracket match goes to the higher seed.
       m.winnerId = d.winnerId ?? (mj.seeds.indexOf(m.a) < mj.seeds.indexOf(m.b) ? m.a : m.b);

@@ -3,3 +3,4 @@ dist
 .DS_Store
 # Business planning docs stay local (not for a public repo)
 docs/
+*.local

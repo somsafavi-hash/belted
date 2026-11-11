@@ -1,8 +1,7 @@
 import { useState } from 'react';
 import { useLeague } from '../data/game';
 import type { Duel } from '../engine/types';
-import { DUEL_TEMPLATES, STAKES, confirmResult, createDuel, disputeResult, reportResult, respondDuel } from '../engine/duels';
-import { onAcceptTrivia, onMyDuel, onMyReport } from '../engine/sim';
+import { DUEL_TEMPLATES, STAKES } from '../engine/duels';
 import { categoryOf, nameOf } from '../engine/feed';
 import { DAY } from '../engine/util';
 import { Avatar, Empty, Sheet, ago, left } from './common';
@@ -11,7 +10,7 @@ import { TriviaGame } from './Trivia';
 export interface ChallengePrefill { to?: string; template?: string }
 
 export function Duels({ prefill, clearPrefill }: { prefill?: ChallengePrefill; clearPrefill: () => void }) {
-  const { league, now, act, toast, me } = useLeague();
+  const { league, now, run, toast, me } = useLeague();
   const [challenge, setChallenge] = useState<ChallengePrefill | undefined>(prefill);
   const [playing, setPlaying] = useState<string>();
   const [reporting, setReporting] = useState<Duel>();
@@ -23,12 +22,8 @@ export function Duels({ prefill, clearPrefill }: { prefill?: ChallengePrefill; c
   const recent = mine.filter((d) => ['settled', 'ducked', 'expired'].includes(d.status) && now - (d.settledAt ?? d.createdAt) < 14 * DAY)
     .sort((a, b) => (b.settledAt ?? 0) - (a.settledAt ?? 0)).slice(0, 10);
 
-  function respond(d: Duel, accept: boolean) {
-    const err = act((l, n) => {
-      respondDuel(l, d.id, accept, n);
-      const x = l.duels.find((y) => y.id === d.id)!;
-      if (accept) onAcceptTrivia(l, x);
-    });
+  async function respond(d: Duel, accept: boolean) {
+    const { error: err } = await run({ type: 'duel.respond', duelId: d.id, accept });
     if (err) return toast(err);
     if (!accept) toast(`🐔 Ducked. The league can see that. −5`);
     else if (d.type === 'trivia') setPlaying(d.id);
@@ -74,8 +69,8 @@ export function Duels({ prefill, clearPrefill }: { prefill?: ChallengePrefill; c
                   ) : d.status === 'reported' ? (
                     d.reportedBy === me ? <span className="chip">Waiting for confirm</span> : (
                       <span className="act-inline">
-                        <button className="btn sm" onClick={() => { const e = act((l, n) => { confirmResult(l, d.id, me, n); }); if (e) toast(e); }}>Confirm</button>
-                        <button className="btn sm danger" onClick={() => { const e = act((l, n) => { disputeResult(l, d.id, me, n); }); if (e) toast(e); }}>Dispute</button>
+                        <button className="btn sm" onClick={async () => { const { error: e } = await run({ type: 'duel.confirm', duelId: d.id }); if (e) toast(e); }}>Confirm</button>
+                        <button className="btn sm danger" onClick={async () => { const { error: e } = await run({ type: 'duel.dispute', duelId: d.id }); if (e) toast(e); }}>Dispute</button>
                       </span>
                     )
                   ) : (
@@ -168,7 +163,7 @@ function Belts({ onChallenge }: { onChallenge: (to: string, template: string) =>
 }
 
 function ChallengeSheet({ prefill, onClose }: { prefill: ChallengePrefill; onClose: () => void }) {
-  const { league, act, toast, me } = useLeague();
+  const { league, run, toast, me } = useLeague();
   const others = league.members.filter((m) => m.id !== me && !league.blocked.includes(m.id));
   const [to, setTo] = useState(prefill.to && prefill.to !== me ? prefill.to : others[0]?.id);
   const [tplKey, setTplKey] = useState(prefill.template ?? 'trivia');
@@ -178,14 +173,8 @@ function ChallengeSheet({ prefill, onClose }: { prefill: ChallengePrefill; onClo
   const tpl = DUEL_TEMPLATES.find((t) => t.key === tplKey)!;
   const belt = league.belts.find((b) => b.categoryId === tpl.categoryId);
 
-  function send() {
-    const err = act((l, n) => {
-      const d = createDuel(l, {
-        challengerId: me, opponentId: to, type: tpl.type, categoryId: tpl.categoryId,
-        title: tpl.key === 'custom' ? custom.trim() || 'Custom' : tpl.title, stakes, extra: extra || undefined,
-      }, n);
-      onMyDuel(l, d, n);
-    });
+  async function send() {
+    const { error: err } = await run({ type: 'duel.create', opponentId: to, template: tpl.key, title: custom, stakes, extra: extra || undefined });
     if (err) return toast(err);
     toast(`⚔️ Sent. ${nameOf(league, to)} has 24h to accept or duck.`);
     onClose();
@@ -224,16 +213,12 @@ function ChallengeSheet({ prefill, onClose }: { prefill: ChallengePrefill; onClo
 }
 
 function ReportSheet({ duel, onClose }: { duel: Duel; onClose: () => void }) {
-  const { league, act, toast, me } = useLeague();
+  const { league, run, toast, me } = useLeague();
   const other = duel.challengerId === me ? duel.opponentId : duel.challengerId;
   const [winner, setWinner] = useState<string | 'draw'>(me);
   const [note, setNote] = useState('');
-  function send() {
-    const err = act((l, n) => {
-      reportResult(l, duel.id, me, winner === 'draw' ? undefined : winner, note, n);
-      const d = l.duels.find((x) => x.id === duel.id)!;
-      if (l.members.find((m) => m.id === other)?.isBot) onMyReport(l, d, n);
-    });
+  async function send() {
+    const { error: err } = await run({ type: 'duel.report', duelId: duel.id, winnerId: winner === 'draw' ? null : winner, note });
     if (err) return toast(err);
     toast(`Sent to ${nameOf(league, other)} to confirm.`);
     onClose();

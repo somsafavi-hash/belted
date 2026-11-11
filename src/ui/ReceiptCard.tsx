@@ -1,13 +1,12 @@
 import { useState } from 'react';
 import type { Receipt } from '../engine/types';
-import { castVote, eligibleVoters, fmtValue, tally } from '../engine/receipts';
+import { eligibleVoters, fmtValue, tally } from '../engine/receipts';
 import { categoryOf, nameOf } from '../engine/feed';
 import { useLeague } from '../data/game';
 import { Avatar, Media, Sheet, ago, left } from './common';
-import { uid } from '../engine/util';
 
 export function ReceiptCard({ r }: { r: Receipt }) {
-  const { league, now, act, toast, me } = useLeague();
+  const { league, now, run, toast, me } = useLeague();
   const [menu, setMenu] = useState(false);
   const cat = categoryOf(league, r.categoryId);
   const mine = r.memberId === me;
@@ -16,24 +15,23 @@ export function ReceiptCard({ r }: { r: Receipt }) {
   const voters = eligibleVoters(league, r).length;
   const isBot = league.members.find((m) => m.id === r.memberId)?.isBot;
 
-  function vote(v: 'legit' | 'cap') {
-    const err = act((l, n) => { castVote(l, r.id, me, v, n); });
+  async function vote(v: 'legit' | 'cap') {
+    const { error: err } = await run({ type: 'receipt.vote', receiptId: r.id, verdict: v });
     if (err) toast(err);
     else if (v === 'cap') toast('🧢 Cap called. If the league agrees, they lose the points.');
   }
 
-  function report(reason: string) {
-    act((l, n) => {
-      l.reports.push({ id: uid(), at: n, receiptId: r.id, reason });
-      l.hiddenReceipts.push(r.id);
-    });
+  async function report(reason: string) {
+    const { error } = await run({ type: 'receipt.report', receiptId: r.id, reason });
     setMenu(false);
-    toast('Reported and hidden. In the real app a moderator reviews it within 24 hours.');
+    if (error) return toast(error);
+    toast('Reported and hidden for you. Thanks for keeping it clean.');
   }
 
-  function block() {
-    act((l) => { if (!l.blocked.includes(r.memberId)) l.blocked.push(r.memberId); });
+  async function block() {
+    const { error } = await run({ type: 'member.block', memberId: r.memberId });
     setMenu(false);
+    if (error) return toast(error);
     toast(`${nameOf(league, r.memberId)} is blocked. You won’t see their receipts.`);
   }
 

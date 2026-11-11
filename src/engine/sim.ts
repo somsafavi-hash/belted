@@ -3,12 +3,11 @@
 // real player. When a backend exists, this file is the only one that goes away.
 
 import type { Duel, League, Member, Scheduled, Verdict } from './types';
-import { castVote, createReceipt, settleDueReceipts } from './receipts';
-import { confirmResult, createDuel, expireDuels, isLive, respondDuel, settleDuel, submitTrivia, DUEL_TEMPLATES, STAKES } from './duels';
+import { castVote, createReceipt } from './receipts';
+import { rulesTick } from './rules';
+import { confirmResult, createDuel, isLive, respondDuel, settleDuel, submitTrivia, DUEL_TEMPLATES, STAKES } from './duels';
 import { botAnswers, triviaScore } from './trivia';
-import { autoDrop, settleDrops } from './drops';
-import { payBelts } from './belts';
-import { advanceMajor, ensureSeason, majorWindowOpen, startMajor } from './season';
+import { ensureSeason } from './season';
 import { DAY, HOUR, MIN, Rng, between, pick, uid } from './util';
 
 /** Long skips (or a phone left closed) replay at most three weeks of activity. */
@@ -157,14 +156,7 @@ export function tick(l: League, now: number, rng: Rng = Math.random): void {
 
 function rules(l: League, now: number, rng: Rng) {
   runScheduled(l, now, rng);
-  settleDueReceipts(l, now);
-  expireDuels(l, now);
-  settleDrops(l, now);
-  autoDrop(l, now);
-  payBelts(l, now);
-  ensureSeason(l, now, rng);
-  if (majorWindowOpen(now)) startMajor(l, now, rng);
-  advanceMajor(l, now, rng);
+  rulesTick(l, now, rng);
 }
 
 export { isLive, triviaScore };

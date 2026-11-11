@@ -6,6 +6,8 @@ interface Props {
   mode: 'photo' | 'video';
   stamp: string;
   onCapture: (blob: Blob, type: 'photo' | 'video') => void;
+  /** Demo mode (and local development) can use a generated image when there's no camera. */
+  allowSample?: boolean;
 }
 
 function pickMime(): string | undefined {
@@ -17,7 +19,7 @@ function pickMime(): string | undefined {
  * Live capture only. There is deliberately no way to pick from the camera
  * roll: proof has to be shot in the app, right now.
  */
-export function Camera({ mode, stamp, onCapture }: Props) {
+export function Camera({ mode, stamp, onCapture, allowSample }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream>();
   const recRef = useRef<MediaRecorder>();
@@ -154,7 +156,7 @@ export function Camera({ mode, stamp, onCapture }: Props) {
         {error ? (
           <div className="vf-error">
             <p>{error}</p>
-            <button className="btn sm ghost" onClick={sample}>No camera? Use a sample proof (demo only)</button>
+            {allowSample && <button className="btn sm ghost" onClick={sample}>No camera? Use a sample proof (demo only)</button>}
           </div>
         ) : (
           <>

@@ -5,9 +5,10 @@ import { categoryOf, nameOf } from '../engine/feed';
 import { DAY, HOUR } from '../engine/util';
 import { TierPill, ago } from './common';
 import { recapImage } from './recap';
+import { InviteCard } from './Invite';
 
 export function Me() {
-  const { league, now, me, skip, reset, toast, act } = useLeague();
+  const { league, now, me, skip, reset, toast, run, mode } = useLeague();
   const [confirmReset, setConfirmReset] = useState(false);
   const [recapUrl, setRecapUrl] = useState<string>();
   const [recapBlob, setRecapBlob] = useState<Blob>();
@@ -98,13 +99,34 @@ export function Me() {
             {league.blocked.map((id) => (
               <div className="duel-line" key={id}>
                 <span className="grow">{nameOf(league, id)}</span>
-                <button className="btn sm ghost" onClick={() => act((l) => { l.blocked = l.blocked.filter((b) => b !== id); })}>Unblock</button>
+                <button className="btn sm ghost" onClick={() => void run({ type: 'member.unblock', memberId: id })}>Unblock</button>
               </div>
             ))}
           </div>
         </section>
       )}
 
+      {mode === 'online' && <InviteCard />}
+
+      {mode === 'online' ? (
+        <section className="sec">
+          <h2>Account</h2>
+          <div className="card sec">
+            <p className="muted small">You’re signed in on this phone only. To use another phone, open the invite link there and join with a new name.</p>
+            {confirmReset ? (
+              <>
+                <p className="small">This removes you from {league.name} and deletes your receipts and proof. Your name in old results becomes “Deleted player”. It can’t be undone.</p>
+                <div className="row2">
+                  <button className="btn ghost" onClick={() => setConfirmReset(false)}>Keep it</button>
+                  <button className="btn danger" onClick={async () => { const e = await reset(); if (e) toast(e); }}>Leave and delete</button>
+                </div>
+              </>
+            ) : (
+              <button className="btn sm danger" onClick={() => setConfirmReset(true)}>Leave the league and delete my data</button>
+            )}
+          </div>
+        </section>
+      ) : (
       <section className="sec">
         <div className="sec-head"><h2>Demo controls</h2><small className="muted">Speed up time to see more</small></div>
         <div className="card sec">
@@ -124,6 +146,7 @@ export function Me() {
           )}
         </div>
       </section>
+      )}
     </>
   );
 }

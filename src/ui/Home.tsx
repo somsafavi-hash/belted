@@ -8,9 +8,10 @@ import { majorStartsAt, currentSeason, monthLabel } from '../engine/season';
 import { monthKey } from '../engine/util';
 import { Avatar, Empty, TierPill, ago, left } from './common';
 import { ReceiptCard } from './ReceiptCard';
+import { InviteCard } from './Invite';
 
 export function Home({ go }: { go: (tab: string) => void }) {
-  const { league, now, me } = useLeague();
+  const { league, now, me, mode } = useLeague();
   const [feedTab, setFeedTab] = useState<'receipts' | 'activity'>('receipts');
   const drop = activeDrop(league, now);
   const rows = standings(league, now);
@@ -31,6 +32,7 @@ export function Home({ go }: { go: (tab: string) => void }) {
 
   return (
     <>
+      {mode === 'online' && league.members.length < 4 && <InviteCard compact />}
       {drop ? (
         <section className="card drop">
           <div className="eyebrow">Live Drop · ends in {left(drop.endsAt - now)}</div>

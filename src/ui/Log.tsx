@@ -1,10 +1,5 @@
 import { useState } from 'react';
 import { useLeague } from '../data/game';
-import { createReceipt } from '../engine/receipts';
-import { addCustomCategory } from '../engine/league';
-import { onMyReceipt } from '../engine/sim';
-import { putMedia } from '../data/store';
-import { uid } from '../engine/util';
 import { Camera } from './Camera';
 import { Sheet } from './common';
 
@@ -14,7 +9,8 @@ const PROOF_TEXT: Record<string, string> = {
 };
 
 export function Log({ done }: { done: () => void }) {
-  const { league, act, toast, me } = useLeague();
+  const { league, run, toast, saveProof, mode } = useLeague();
+  const [busy, setBusy] = useState(false);
   const cats = league.categories.filter((c) => c.loggable);
   const [catId, setCatId] = useState(cats[0].id);
   const [value, setValue] = useState('');
@@ -25,16 +21,14 @@ export function Log({ done }: { done: () => void }) {
   const num = Number(value);
 
   async function captured(blob: Blob, type: 'photo' | 'video') {
-    const mediaId = uid();
-    await putMedia(mediaId, blob);
-    let newId = '';
-    const err = act((l, now) => {
-      const r = createReceipt(l, { memberId: me, categoryId: cat.id, value: num, note: note.trim() || undefined, mediaId, mediaType: type }, now);
-      newId = r.id;
-      onMyReceipt(l, r.id, now);
-    });
+    if (busy) return;
+    setBusy(true);
+    toast(type === 'video' ? 'Uploading your video…' : 'Uploading your proof…');
+    const saved = await saveProof(blob);
+    if (!saved.mediaId) { setBusy(false); toast(saved.error ?? 'Upload failed.'); return; }
+    const { error: err } = await run({ type: 'receipt.create', categoryId: cat.id, value: num, note: note.trim() || undefined, mediaId: saved.mediaId, mediaType: type });
+    setBusy(false);
     if (err) { toast(err); return; }
-    void newId;
     toast('🧾 Receipt posted. Your league has 24h to vote legit or cap.');
     done();
   }
@@ -47,7 +41,7 @@ export function Log({ done }: { done: () => void }) {
           <button className="link" onClick={() => setStep('details')}>Back</button>
         </div>
         <div className="card rule"><span>🧾</span><span>{PROOF_TEXT[cat.proof] ?? PROOF_TEXT.photo}</span></div>
-        <Camera mode={cat.proof === 'video' ? 'video' : 'photo'} stamp={`${value} ${cat.unit.toUpperCase()}`} onCapture={captured} />
+        <Camera mode={cat.proof === 'video' ? 'video' : 'photo'} stamp={`${value} ${cat.unit.toUpperCase()}`} onCapture={captured} allowSample={mode === 'demo' || import.meta.env.DEV} />
       </section>
     );
   }
@@ -84,16 +78,15 @@ export function Log({ done }: { done: () => void }) {
 }
 
 function NewCategory({ onClose, onMade }: { onClose: () => void; onMade: (id: string) => void }) {
-  const { act, toast } = useLeague();
+  const { run, toast } = useLeague();
   const [name, setName] = useState('');
   const [icon, setIcon] = useState('🧊');
   const [unit, setUnit] = useState('min');
   const [proof, setProof] = useState<'photo' | 'video'>('video');
-  function save() {
-    let id = '';
-    const err = act((l) => { id = addCustomCategory(l, { name, icon, unit, proof }).id; });
+  async function save() {
+    const { error: err, result } = await run({ type: 'category.add', name, icon, unit, proof });
     if (err) toast(err);
-    else { toast(`${icon} ${name} added. It has its own belt now.`); onMade(id); }
+    else { toast(`${icon} ${name} added. It has its own belt now.`); onMade(result?.categoryId ?? ''); }
   }
   return (
     <Sheet title="New category" onClose={onClose}>

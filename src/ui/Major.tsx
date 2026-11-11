@@ -2,13 +2,13 @@ import { useState } from 'react';
 import { useLeague } from '../data/game';
 import { monthPoints } from '../engine/rating';
 import { nameOf } from '../engine/feed';
-import { PUNISHMENTS, currentSeason, majorStartsAt, monthLabel, punishment, seedsFor, votePunishment } from '../engine/season';
+import { PUNISHMENTS, currentSeason, majorStartsAt, monthLabel, punishment, seedsFor } from '../engine/season';
 import { monthKey } from '../engine/util';
 import { Avatar, left } from './common';
 import { TriviaGame } from './Trivia';
 
 export function Major() {
-  const { league, now, act, toast, me, skip } = useLeague();
+  const { league, now, run, toast, me, skip, mode } = useLeague();
   const [playing, setPlaying] = useState<string>();
   const month = monthKey(now);
   const season = currentSeason(league, now);
@@ -16,8 +16,8 @@ export function Major() {
   const seeds = seedsFor(league, month);
   const myVote = season?.punishmentVotes[me];
 
-  function vote(p: string) {
-    const err = act((l, n) => votePunishment(l, me, p, n));
+  async function vote(p: string) {
+    const { error: err } = await run({ type: 'punishment.vote', choice: p });
     if (err) toast(err);
   }
 
@@ -30,7 +30,8 @@ export function Major() {
           {mj ? (mj.done ? `Champion. Last place: ${nameOf(league, mj.lastPlaceId)}.` : 'Top 4 by monthly points. Semis, then the final. All trivia.')
             : 'until the bracket. Top 4 by points this month get in. Last place gets the punishment.'}
         </div>
-        {!mj && <button className="btn sm ghost" onClick={() => skip(Math.max(0, majorStartsAt(now) - now) + 60_000)}>Skip to Major weekend (demo)</button>}
+        {!mj && league.members.length < 4 && <div className="chip red">Needs 4+ members to run</div>}
+        {!mj && mode === 'demo' && <button className="btn sm ghost" onClick={() => skip(Math.max(0, majorStartsAt(now) - now) + 60_000)}>Skip to Major weekend (demo)</button>}
       </section>
 
       {mj && (

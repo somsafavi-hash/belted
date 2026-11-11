@@ -103,3 +103,27 @@ export function createDemoLeague(leagueName: string, myName: string, now: number
   autoDrop(l, now);
   return l;
 }
+
+/** A real league: starts with just its creator. Everyone else joins by link. */
+export function createOnlineLeague(id: string, leagueName: string, owner: Member, now: number, rng: Rng = Math.random): League {
+  const l: League = {
+    id, name: leagueName.trim().slice(0, 28) || 'The Boys', createdAt: now, meId: '',
+    members: [owner], categories: PRESET_CATEGORIES.map((c) => ({ ...c })),
+    receipts: [], duels: [], belts: [], drops: [], ratings: [], feed: [], seasons: [], scheduled: [],
+    reports: [], hiddenReceipts: [], blocked: [], lastTick: now,
+  };
+  ensureBelts(l);
+  ensureSeason(l, now, rng);
+  post(l, now, '👋', `${owner.name} started ${l.name}. Drop the invite link in the group chat.`);
+  autoDrop(l, now);
+  return l;
+}
+
+export function newMember(l: League | undefined, id: string, rawName: string): Member {
+  const name = rawName.trim().replace(/\s+/g, ' ').slice(0, 20);
+  if (!name) throw new Error('Pick a name.');
+  if (l?.members.some((m) => m.name.toLowerCase() === name.toLowerCase())) throw new Error(`Someone in this league is already called ${name}.`);
+  if (l && l.members.length >= 30) throw new Error('This league is full (30 people).');
+  const color = MEMBER_COLORS[(l?.members.length ?? 0) % MEMBER_COLORS.length];
+  return { id, name, color, isBot: false, skill: 0.5, honesty: 1 };
+}

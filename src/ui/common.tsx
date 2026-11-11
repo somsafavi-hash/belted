@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import type { League } from '../engine/types';
 import { tier } from '../engine/rating';
 import { mediaUrl } from '../data/store';
+import { useGame } from '../data/game';
 import { DAY, HOUR, MIN } from '../engine/util';
 
 export function Avatar({ league, id, size = 34 }: { league: League; id: string; size?: number }) {
@@ -53,13 +54,16 @@ export function Sheet({ title, onClose, children }: { title: string; onClose: ()
 }
 
 export function Media({ id, type, className }: { id: string; type: 'photo' | 'video'; className?: string }) {
-  const [url, setUrl] = useState<string>();
+  const { mode, onlineMediaUrl } = useGame();
+  const [localUrl, setUrl] = useState<string>();
   const [missing, setMissing] = useState(false);
+  const url = mode === 'online' ? onlineMediaUrl(id) : localUrl;
   useEffect(() => {
+    if (mode === 'online') return;
     let live = true;
     mediaUrl(id).then((u) => { if (!live) return; if (u) setUrl(u); else setMissing(true); });
     return () => { live = false; };
-  }, [id]);
+  }, [id, mode]);
   if (missing) return <div className={`thumb ${className ?? ''}`}><span className="muted">Proof not on this device</span></div>;
   if (!url) return <div className={`thumb ${className ?? ''}`} />;
   return type === 'video'

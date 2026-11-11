@@ -1,12 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { useLeague } from '../data/game';
-import { submitTrivia } from '../engine/duels';
 import { QUESTIONS, TRIVIA_SECONDS } from '../engine/trivia';
 import { nameOf } from '../engine/feed';
 import { Avatar } from './common';
 
 export function TriviaGame({ duelId, onClose }: { duelId: string; onClose: () => void }) {
-  const { league, act, toast, me } = useLeague();
+  const { league, run, toast, me } = useLeague();
   const duel = league.duels.find((d) => d.id === duelId)!;
   const qids = duel.trivia!.questionIds;
   const other = duel.challengerId === me ? duel.opponentId : duel.challengerId;
@@ -34,9 +33,8 @@ export function TriviaGame({ duelId, onClose }: { duelId: string; onClose: () =>
   useEffect(() => {
     if (!done || submitted.current) return;
     submitted.current = true;
-    const err = act((l, n) => { submitTrivia(l, duelId, me, answers, n); });
-    if (err) toast(err);
-  }, [done, act, answers, duelId, me, toast]);
+    void run({ type: 'duel.trivia', duelId, answers }).then(({ error }) => error && toast(error));
+  }, [done, run, answers, duelId, toast]);
 
   function begin() {
     setStarted(true);
