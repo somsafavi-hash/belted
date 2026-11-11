@@ -11,8 +11,9 @@ const ORIGINS = ['https://somsafavi-hash.github.io', 'http://localhost:5199', 'h
 const root = path.resolve(__dirname, '..');
 
 const app = new App();
+// Pinned to the My Sign account so a deploy with the wrong credentials fails instead of landing elsewhere.
 const stack = new Stack(app, 'belted', {
-  env: { account: process.env.CDK_DEFAULT_ACCOUNT, region: process.env.CDK_DEFAULT_REGION ?? 'us-east-2' },
+  env: { account: '889002527942', region: 'us-east-2' },
   description: 'Belted: friend-group league app API and media',
 });
 Tags.of(stack).add('project', 'belted');
@@ -55,6 +56,10 @@ const url = fn.addFunctionUrl({
     maxAge: Duration.hours(1),
   },
 });
+
+// AWS now also requires lambda:InvokeFunction (limited to calls through the URL) for public Function URLs.
+const viaUrl = new lambda.CfnPermission(stack, 'InvokeViaUrl', { action: 'lambda:InvokeFunction', functionName: fn.functionName, principal: '*' });
+viaUrl.addPropertyOverride('InvokedViaFunctionUrl', true);
 
 new CfnOutput(stack, 'ApiUrl', { value: url.url });
 new CfnOutput(stack, 'BucketName', { value: bucket.bucketName });

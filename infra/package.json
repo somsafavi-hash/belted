@@ -3,7 +3,7 @@
   "private": true,
   "scripts": {
     "synth": "cdk synth",
-    "deploy": "cdk deploy --require-approval never --outputs-file outputs.json"
+    "deploy": "./deploy.sh"
   },
   "devDependencies": {
     "aws-cdk": "2.170.0",

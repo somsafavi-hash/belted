@@ -1,6 +1,7 @@
 #!/bin/sh
 # Builds the app and publishes dist/ to the gh-pages branch, which GitHub Pages serves.
 set -e
+grep -q VITE_API_URL .env.production || { echo 'Missing .env.production with VITE_API_URL'; exit 1; }
 npm test
 npm run build
 touch dist/.nojekyll
