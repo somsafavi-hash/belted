@@ -61,7 +61,7 @@ export function Home({ go }: { go: (tab: string) => void }) {
       </button>
 
       <section className="sec">
-        <div className="sec-head"><h2>Standings</h2><small className="muted">{league.members.length} members</small></div>
+        <div className="sec-head"><h2>Standings</h2><small className="muted">{league.members.length} {league.members.length === 1 ? 'member' : 'members'}</small></div>
         <div className="card list">
           {rows.map((s, i) => {
             const belts = league.belts.filter((b) => b.holderId === s.memberId).map((b) => categoryOf(league, b.categoryId)?.name);
