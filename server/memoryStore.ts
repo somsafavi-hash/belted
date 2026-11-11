@@ -26,6 +26,13 @@ export class MemoryStore implements Store {
   async mediaUrl(leagueId: string, mediaId: string) {
     return `${this.publicBase}/media/${leagueId}/${mediaId}`;
   }
+  markers = new Set<string>();
+  async setReportMarker(leagueId: string, open: boolean) {
+    if (open) this.markers.add(leagueId); else this.markers.delete(leagueId);
+  }
+  async listReportMarkers() {
+    return [...this.markers];
+  }
   async deleteMedia(leagueId: string, ids: string[]) {
     for (const m of ids) this.media.delete(`${leagueId}/${m}`);
   }

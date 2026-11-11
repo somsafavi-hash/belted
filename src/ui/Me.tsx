@@ -6,10 +6,14 @@ import { DAY, HOUR } from '../engine/util';
 import { TierPill, ago } from './common';
 import { recapImage } from './recap';
 import { InviteCard } from './Invite';
+import { ModScreen, reportGroups } from './Moderation';
 
 export function Me() {
   const { league, now, me, skip, reset, toast, run, mode } = useLeague();
   const [confirmReset, setConfirmReset] = useState(false);
+  const [modOpen, setModOpen] = useState(false);
+  const isOwner = league.ownerId === me;
+  const toReview = reportGroups(league.reports).length;
   const [recapUrl, setRecapUrl] = useState<string>();
   const [recapBlob, setRecapBlob] = useState<Blob>();
   const r = rating(league, me);
@@ -47,6 +51,16 @@ export function Me() {
         <div className="big">{tier(r)}</div>
         <div className="muted mono">{r.toLocaleString()} rating · #{pos} in {league.name}</div>
       </section>
+
+      {isOwner && (
+        <button className={`card mod-entry ${toReview ? 'urgent' : ''}`} onClick={() => setModOpen(true)}>
+          <span className="big-ico">🛡️</span>
+          <span className="grow"><b>Moderation</b><small className="muted">{toReview ? `${toReview} report${toReview > 1 ? 's' : ''} to review` : 'Reports and members'}</small></span>
+          {toReview > 0 && <span className="badge">{toReview}</span>}
+          <span className="muted">›</span>
+        </button>
+      )}
+      {modOpen && <ModScreen onClose={() => setModOpen(false)} />}
 
       <section className="sec">
         <h2>By category</h2>
@@ -105,6 +119,7 @@ export function Me() {
           </div>
         </section>
       )}
+
 
       {mode === 'online' && <InviteCard />}
 

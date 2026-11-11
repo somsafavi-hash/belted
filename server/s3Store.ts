@@ -1,4 +1,4 @@
-import { DeleteObjectsCommand, GetObjectCommand, HeadObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { DeleteObjectCommand, DeleteObjectsCommand, GetObjectCommand, HeadObjectCommand, ListObjectsV2Command, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { createPresignedPost } from '@aws-sdk/s3-presigned-post';
 import { MAX_UPLOAD_BYTES, type LeagueDoc, type Store, type Upload } from './store';
@@ -64,6 +64,23 @@ export class S3Store implements Store {
       expiresIn: 2 * 3600,
       signingDate: hour,
     });
+  }
+
+  async setReportMarker(leagueId: string, open: boolean) {
+    const Key = `reports/open/${leagueId}`;
+    if (open) await this.s3.send(new PutObjectCommand({ Bucket: this.bucket, Key, Body: '1' }));
+    else await this.s3.send(new DeleteObjectCommand({ Bucket: this.bucket, Key }));
+  }
+
+  async listReportMarkers() {
+    const out: string[] = [];
+    let token: string | undefined;
+    do {
+      const r = await this.s3.send(new ListObjectsV2Command({ Bucket: this.bucket, Prefix: 'reports/open/', ContinuationToken: token }));
+      for (const o of r.Contents ?? []) out.push(o.Key!.slice('reports/open/'.length));
+      token = r.NextContinuationToken;
+    } while (token);
+    return out;
   }
 
   async deleteMedia(leagueId: string, ids: string[]) {

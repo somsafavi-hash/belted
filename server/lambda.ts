@@ -14,7 +14,9 @@ interface UrlEvent {
 
 export async function main(event: UrlEvent) {
   const body = event.body && event.isBase64Encoded ? Buffer.from(event.body, 'base64').toString('utf8') : event.body;
-  const res = await handle({ method: event.requestContext.http.method, path: event.rawPath, headers: event.headers, body }, store);
+  const res = await handle({ method: event.requestContext.http.method, path: event.rawPath, headers: event.headers, body }, store, Date.now(), {
+    adminKeyHash: process.env.ADMIN_KEY_SHA256 || undefined,
+  });
   return {
     statusCode: res.status,
     headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },

@@ -8,7 +8,9 @@ import { DUEL_TEMPLATES, STAKES, confirmResult, createDuel, disputeResult, repor
 import { addCustomCategory } from './league';
 import { PUNISHMENTS, votePunishment } from './season';
 import { TRIVIA_ROUND } from './trivia';
-import { uid, type Rng } from './util';
+import { type Rng } from './util';
+import { isActive } from './feed';
+import { dismissReport, removeMember, removeReceipt, reportReceipt } from './moderation';
 
 export type Action =
   | { type: 'receipt.create'; categoryId: string; value: number; note?: string; mediaId?: string; mediaType?: 'photo' | 'video' }
@@ -23,20 +25,30 @@ export type Action =
   | { type: 'duel.report'; duelId: string; winnerId: string | null; note: string }
   | { type: 'duel.confirm'; duelId: string }
   | { type: 'duel.dispute'; duelId: string }
-  | { type: 'punishment.vote'; choice: string };
+  | { type: 'punishment.vote'; choice: string }
+  // League owner only:
+  | { type: 'mod.remove'; receiptId: string }
+  | { type: 'mod.dismiss'; reportId: string }
+  | { type: 'mod.kick'; memberId: string };
 
 /** What an action created, so the caller can follow up (e.g. demo bots react). */
 export interface ActionResult {
   receiptId?: string;
   duelId?: string;
   categoryId?: string;
+  /** Proof the server should delete from storage. */
+  deleteMedia?: string[];
+}
+
+function ownerOnly(l: League, actorId: string) {
+  if (!l.ownerId || l.ownerId !== actorId) throw new Error('Only the person who started the league can do that.');
 }
 
 const str = (v: unknown, max: number) => (typeof v === 'string' ? v.slice(0, max) : '');
 const EXTRAS = ['Loser buys coffee', 'Loser buys wings', 'Loser posts an L on their story'];
 
 export function applyAction(l: League, actorId: string, a: Action, now: number, rng: Rng = Math.random): ActionResult {
-  if (!l.members.some((m) => m.id === actorId)) throw new Error('You’re not in this league.');
+  if (!isActive(l, actorId)) throw new Error('You’re not in this league.');
   switch (a.type) {
     case 'receipt.create': {
       const value = Number(a.value);
@@ -53,11 +65,23 @@ export function applyAction(l: League, actorId: string, a: Action, now: number, 
       castVote(l, a.receiptId, actorId, a.verdict, now);
       return {};
     case 'receipt.report': {
-      if (!l.receipts.some((r) => r.id === a.receiptId)) throw new Error('Receipt not found.');
-      l.reports.push({ id: uid(), at: now, receiptId: a.receiptId, reason: str(a.reason, 60) || 'Reported' });
+      reportReceipt(l, actorId, a.receiptId, str(a.reason, 60), now);
       if (!l.hiddenReceipts.includes(a.receiptId)) l.hiddenReceipts.push(a.receiptId);
       return {};
     }
+    case 'mod.remove': {
+      ownerOnly(l, actorId);
+      const m = removeReceipt(l, a.receiptId, 'owner', now);
+      return { deleteMedia: m ? [m] : [] };
+    }
+    case 'mod.dismiss':
+      ownerOnly(l, actorId);
+      dismissReport(l, a.reportId, 'owner', now);
+      return {};
+    case 'mod.kick':
+      ownerOnly(l, actorId);
+      if (a.memberId === actorId) throw new Error('You can’t remove yourself. Leave from the Me tab instead.');
+      return { deleteMedia: removeMember(l, a.memberId, now, 'removed') };
     case 'member.block':
       if (a.memberId === actorId) throw new Error('You can’t block yourself.');
       if (!l.blocked.includes(a.memberId)) l.blocked.push(a.memberId);

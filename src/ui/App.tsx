@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { useGame } from '../data/game';
 import { createDemoLeague } from '../engine/league';
 import { ONLINE_AVAILABLE, api } from '../data/api';
+import { AdminScreen } from './Admin';
+import { reportGroups } from './Moderation';
 import { Home } from './Home';
 import { Log } from './Log';
 import { Duels, type ChallengePrefill } from './Duels';
@@ -36,6 +38,7 @@ export function App() {
     }
   };
 
+  if (tab === ('admin' as Tab) || location.hash === '#admin') return <AdminScreen />;
   if (!league) {
     return session ? <div className="onboard"><div className="brand xl">Belted<i>.</i></div><p className="muted">Loading your league…</p></div> : <Onboarding />;
   }
@@ -64,7 +67,7 @@ export function App() {
         <TabBtn t="duels" cur={tab} go={go} icon="⚔️" label="Duels" badge={incoming} />
         <button className={`tab plus ${tab === 'log' ? 'on' : ''}`} onClick={() => go('log')} aria-label="Log a receipt"><span className="ti">+</span></button>
         <TabBtn t="major" cur={tab} go={go} icon="👑" label="Major" badge={myMajor ? 1 : 0} />
-        <TabBtn t="me" cur={tab} go={go} icon="👤" label="Me" />
+        <TabBtn t="me" cur={tab} go={go} icon="👤" label="Me" badge={league.ownerId === league.meId ? reportGroups(league.reports).length : 0} />
       </nav>
       {toastMsg && <div className="toast" role="status">{toastMsg}</div>}
       <span hidden>{now}</span>

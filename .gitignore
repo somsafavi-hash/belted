@@ -4,3 +4,4 @@ dist
 # Business planning docs stay local (not for a public repo)
 docs/
 *.local
+.admin-key

@@ -63,6 +63,7 @@ export function votePunishment(l: League, memberId: string, choice: string, now:
 
 export function seedsFor(l: League, month: string): string[] {
   return l.members
+    .filter((m) => !m.left)
     .map((m) => ({ id: m.id, p: monthPoints(l, m.id, month), r: rating(l, m.id) }))
     .sort((a, b) => b.p - a.p || b.r - a.r)
     .map((x) => x.id);

@@ -1,6 +1,6 @@
 import type { League, Receipt, Verdict } from './types';
 import { addRating } from './rating';
-import { categoryOf, nameOf, post } from './feed';
+import { activeMembers, categoryOf, isActive, nameOf, post } from './feed';
 import { DAY, dayKey, uid } from './util';
 
 export const RECEIPT_POINTS = 10;
@@ -39,7 +39,7 @@ export function createReceipt(l: League, input: NewReceipt, now: number): Receip
 }
 
 export function eligibleVoters(l: League, r: Receipt): string[] {
-  return l.members.filter((m) => m.id !== r.memberId).map((m) => m.id);
+  return activeMembers(l).filter((m) => m.id !== r.memberId).map((m) => m.id);
 }
 
 export function castVote(l: League, receiptId: string, voterId: string, verdict: Verdict, now: number): Receipt {
@@ -47,7 +47,8 @@ export function castVote(l: League, receiptId: string, voterId: string, verdict:
   if (!r) throw new Error('Receipt not found.');
   if (r.memberId === voterId) throw new Error('You can’t vote on your own receipt.');
   if (r.status !== 'open') throw new Error('Voting on this receipt is closed.');
-  if (!l.members.some((m) => m.id === voterId)) throw new Error('Only league members can vote.');
+  if (!isActive(l, voterId)) throw new Error('Only league members can vote.');
+  if (r.flagged || r.removed) throw new Error('This receipt is under review.');
   r.votes[voterId] = verdict;
   maybeSettle(l, r, now);
   return r;

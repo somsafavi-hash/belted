@@ -10,7 +10,7 @@ const store = new MemoryStore(base);
 
 createServer(async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Headers', 'authorization, content-type');
+  res.setHeader('Access-Control-Allow-Headers', 'authorization, content-type, x-admin-key');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, OPTIONS');
   if (req.method === 'OPTIONS') { res.writeHead(204).end(); return; }
   const chunks: Buffer[] = [];
@@ -32,6 +32,9 @@ createServer(async (req, res) => {
     return;
   }
 
-  const out = await handle({ method: req.method ?? 'GET', path, headers: req.headers as Record<string, string>, body: raw.toString('utf8') }, store);
+  const out = await handle({ method: req.method ?? 'GET', path, headers: req.headers as Record<string, string>, body: raw.toString('utf8') }, store, Date.now(), {
+    // Local admin key is "local-admin".
+    adminKeyHash: '8aa203921e9b2adba121fbbe07504a30a9c1a647dd4961c1a355947280016649',
+  });
   res.writeHead(out.status, { 'Content-Type': 'application/json' }).end(JSON.stringify(out.body));
 }).listen(PORT, '127.0.0.1', () => console.log(`Belted API on ${base}`));

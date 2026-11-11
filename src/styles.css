@@ -224,3 +224,9 @@ p { margin: 0; }
 .offline { background: rgba(255, 107, 91, 0.15); color: var(--cap); font-size: 12px; padding: 6px 16px; text-align: center; }
 .invite { display: flex; flex-direction: column; gap: 8px; border: 1px solid var(--gold); background: rgba(242, 182, 50, 0.06); }
 .invite input { font-family: var(--mono); font-size: 12px; }
+
+.reasons { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.mod-entry { display: flex; gap: 12px; align-items: center; text-align: left; }
+.mod-entry b { display: block; }
+.mod-entry.urgent { border: 1px solid var(--cap); }
+.full.mod { gap: 18px; }

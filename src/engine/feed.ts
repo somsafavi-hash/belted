@@ -12,6 +12,15 @@ export function nameOf(l: League, id?: string): string {
   return l.members.find((m) => m.id === id)?.name ?? 'Someone';
 }
 
+/** Members still in the league. */
+export function activeMembers(l: League) {
+  return l.members.filter((m) => !m.left);
+}
+
+export function isActive(l: League, id: string): boolean {
+  return l.members.some((m) => m.id === id && !m.left);
+}
+
 export function categoryOf(l: League, id?: string) {
   return l.categories.find((c) => c.id === id);
 }

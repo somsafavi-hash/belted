@@ -13,6 +13,8 @@ export interface Member {
   skill: number;
   /** 0..1, chance a bot's receipt is honest. */
   honesty: number;
+  /** Left the league or was removed. Kept so old results still have a name. */
+  left?: boolean;
 }
 
 export interface Category {
@@ -44,6 +46,10 @@ export interface Receipt {
   scored: boolean;
   /** Simulation only: a bot inflated this one. Never shown in the UI. */
   suspicious?: boolean;
+  /** Hidden from the league while reports are reviewed. */
+  flagged?: boolean;
+  /** Taken down by a moderator. Proof is deleted. */
+  removed?: boolean;
 }
 
 export type DuelType = 'trivia' | 'measured' | 'irl';
@@ -150,6 +156,11 @@ export interface Report {
   at: number;
   receiptId: string;
   reason: string;
+  /** Private: never sent to other players, used to stop duplicate reports. */
+  reporterId?: string;
+  status?: 'open' | 'removed' | 'dismissed';
+  resolvedAt?: number;
+  resolvedBy?: 'owner' | 'belted';
 }
 
 export interface League {
@@ -157,6 +168,8 @@ export interface League {
   name: string;
   createdAt: number;
   meId: string;
+  /** Who started the league. They can moderate it. */
+  ownerId?: string;
   members: Member[];
   categories: Category[];
   receipts: Receipt[];

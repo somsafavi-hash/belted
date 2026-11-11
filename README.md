@@ -29,6 +29,15 @@ player can't edit their phone to give themselves points, vote twice, or act as
 someone else. Proof goes straight from the phone to private storage and is shown
 only through links that expire after two hours.
 
+**Moderation:** anyone can report a receipt (it disappears for them right
+away; two reports from different people hide it from the whole league until
+it's reviewed). The person who started the league gets a **Moderation** screen
+on the Me tab to keep or remove reported receipts and remove members, and never
+sees who reported. Belted has its own queue across every league at
+`/#admin`, unlocked with the admin key (kept in `.admin-key`, never committed;
+only its hash is deployed). Removing a receipt deletes its proof and takes back
+its points.
+
 **Demo mode:** "Try it solo" gives you five made-up friends who post, vote and
 challenge you on their own, all on one phone. The Me tab can skip time forward.
 

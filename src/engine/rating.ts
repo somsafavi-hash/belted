@@ -68,7 +68,7 @@ export interface StandingRow {
 }
 
 export function standings(l: League, now: number): StandingRow[] {
-  const ids = l.members.map((m) => m.id);
+  const ids = l.members.filter((m) => !m.left).map((m) => m.id);
   const nowRank = ids.slice().sort((a, b) => rating(l, b) - rating(l, a));
   const weekAgo = now - 7 * DAY;
   const oldRank = ids.slice().sort((a, b) => rating(l, b, undefined, weekAgo) - rating(l, a, undefined, weekAgo));

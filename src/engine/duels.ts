@@ -1,7 +1,7 @@
 import type { Duel, DuelType, League } from './types';
 import { addRating, duelSwing, rating } from './rating';
 import { beltFor, onCategoryWin } from './belts';
-import { categoryOf, nameOf, post } from './feed';
+import { categoryOf, isActive, nameOf, post } from './feed';
 import { QUESTIONS, TRIVIA_ROUND, triviaScore } from './trivia';
 import { DAY, Rng, shuffle, uid } from './util';
 
@@ -39,7 +39,7 @@ export interface NewDuel {
 
 export function createDuel(l: League, input: NewDuel, now: number, rng: Rng = Math.random): Duel {
   if (input.challengerId === input.opponentId) throw new Error('You can’t duel yourself.');
-  if (!l.members.some((m) => m.id === input.opponentId)) throw new Error('Pick someone in your league.');
+  if (!isActive(l, input.opponentId)) throw new Error('Pick someone in your league.');
   const open = l.duels.find(
     (d) =>
       ['sent', 'accepted', 'reported'].includes(d.status) && !d.major &&

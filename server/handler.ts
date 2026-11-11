@@ -1,13 +1,15 @@
 // The Belted API. Plain request in, plain response out, so it runs the same in
 // AWS Lambda, in the local dev server and in tests.
 
-import { createHash, randomBytes } from 'node:crypto';
+import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import type { League } from '../src/engine/types';
 import type { Action } from '../src/engine/actions';
 import { applyAction } from '../src/engine/actions';
 import { createOnlineLeague, newMember } from '../src/engine/league';
 import { rulesTick } from '../src/engine/rules';
-import { post } from '../src/engine/feed';
+import { categoryOf, nameOf, post } from '../src/engine/feed';
+import { dismissReport, openReports, removeMember, removeReceipt } from '../src/engine/moderation';
+import { fmtValue } from '../src/engine/receipts';
 import type { LeagueDoc, Store } from './store';
 
 export interface Req {
@@ -42,15 +44,19 @@ function parse(body?: string): Record<string, unknown> {
 
 /** What one player is allowed to see. */
 async function view(store: Store, doc: LeagueDoc, playerId: string) {
+  const owner = doc.league.ownerId === playerId;
   const l: League = {
     ...doc.league,
     meId: playerId,
     hiddenReceipts: doc.prefs[playerId]?.hidden ?? [],
     blocked: doc.prefs[playerId]?.blocked ?? [],
-    reports: [],
+    // The owner sees open reports to review, never who made them.
+    reports: owner ? openReports(doc.league).map(({ reporterId: _r, ...rep }) => rep) : [],
     scheduled: [],
-    // Bot-only field, never meaningful online.
-    receipts: doc.league.receipts.map(({ suspicious: _s, ...r }) => r),
+    // Removed receipts are gone for everyone. Ones under review stay visible only to their author and the owner.
+    receipts: doc.league.receipts
+      .filter((r) => !r.removed && (!r.flagged || owner || r.memberId === playerId))
+      .map(({ suspicious: _s, ...r }) => r),
   };
   const mediaUrls: Record<string, string> = {};
   await Promise.all(
@@ -81,9 +87,19 @@ async function mutate<T>(store: Store, leagueId: string, now: number, fn: (doc: 
   throw new HttpError(409, 'Busy. Try again.');
 }
 
-export async function handle(req: Req, store: Store, now = Date.now()): Promise<Res> {
+export interface Options {
+  /** sha256 of the Belted admin key. Admin routes are off when unset. */
+  adminKeyHash?: string;
+}
+
+/** Keeps the admin queue's marker in step with the league's open reports. */
+async function syncMarker(store: Store, doc: LeagueDoc) {
+  await store.setReportMarker(doc.league.id, openReports(doc.league).length > 0);
+}
+
+export async function handle(req: Req, store: Store, now = Date.now(), opts: Options = {}): Promise<Res> {
   try {
-    return await route(req, store, now);
+    return await route(req, store, now, opts);
   } catch (e) {
     if (e instanceof HttpError) return { status: e.status, body: { error: e.message } };
     if (e instanceof Error && !(e instanceof TypeError) && !(e instanceof ReferenceError)) {
@@ -95,12 +111,13 @@ export async function handle(req: Req, store: Store, now = Date.now()): Promise<
   }
 }
 
-async function route(req: Req, store: Store, now: number): Promise<Res> {
+async function route(req: Req, store: Store, now: number, opts: Options): Promise<Res> {
   const parts = req.path.replace(/^\/+|\/+$/g, '').split('/');
   const method = req.method.toUpperCase();
   const authz = req.headers.authorization ?? req.headers.Authorization;
 
   if (parts[0] === 'health') return { status: 200, body: { ok: true } };
+  if (parts[0] === 'admin') return admin(req, parts, method, store, now, opts);
   if (parts[0] !== 'leagues') throw new HttpError(404, 'Not found.');
 
   // POST /leagues  → start a league
@@ -174,9 +191,13 @@ async function route(req: Req, store: Store, now: number): Promise<Res> {
       d.prefs[playerId] = { hidden: d.league.hiddenReceipts, blocked: d.league.blocked };
       d.league.hiddenReceipts = [];
       d.league.blocked = [];
+      if (action.type === 'mod.kick') { delete d.auth[action.memberId]; delete d.prefs[action.memberId]; }
       return result;
     });
-    return { status: 200, body: { result: out, ...(await view(store, doc, playerId)) } };
+    if (out.deleteMedia?.length) await store.deleteMedia(leagueId, out.deleteMedia);
+    if (action.type === 'receipt.report' || action.type.startsWith('mod.')) await syncMarker(store, doc);
+    const { deleteMedia: _d, ...result } = out;
+    return { status: 200, body: { result, ...(await view(store, doc, playerId)) } };
   }
 
   // POST /leagues/:id/uploads → where to send a photo or video
@@ -194,17 +215,93 @@ async function route(req: Req, store: Store, now: number): Promise<Res> {
   // POST /leagues/:id/leave → delete my data
   if (sub === 'leave' && method === 'POST') {
     let mine: string[] = [];
-    await mutate(store, leagueId, now, (d) => {
+    const { doc } = await mutate(store, leagueId, now, (d) => {
       const playerId = auth(d, authz);
-      const m = d.league.members.find((x) => x.id === playerId)!;
-      mine = d.league.receipts.filter((r) => r.memberId === playerId && r.mediaId).map((r) => r.mediaId!);
-      d.league.receipts = d.league.receipts.filter((r) => r.memberId !== playerId);
-      post(d.league, now, '👋', `${m.name} left the league.`);
-      m.name = `Deleted player ${d.league.members.indexOf(m) + 1}`;
+      mine = removeMember(d.league, playerId, now, 'left');
       delete d.auth[playerId];
       delete d.prefs[playerId];
+      // Reports they made stay (the receipts still need review); reports on their receipts close.
+      for (const rep of d.league.reports) {
+        if (!d.league.receipts.some((r) => r.id === rep.receiptId) && (rep.status ?? 'open') === 'open') rep.status = 'dismissed';
+      }
     });
     await store.deleteMedia(leagueId, mine);
+    await syncMarker(store, doc);
+    return { status: 200, body: { ok: true } };
+  }
+
+  throw new HttpError(404, 'Not found.');
+}
+
+// ---- Belted admin: every league's open reports, and the power to act on them ----
+
+function adminAuth(req: Req, opts: Options) {
+  const key = req.headers['x-admin-key'] ?? req.headers['X-Admin-Key'];
+  if (!opts.adminKeyHash || !key) throw new HttpError(401, 'Admin key required.');
+  const a = Buffer.from(hash(key), 'hex');
+  const b = Buffer.from(opts.adminKeyHash, 'hex');
+  if (a.length !== b.length || !timingSafeEqual(a, b)) throw new HttpError(401, 'Wrong admin key.');
+}
+
+async function admin(req: Req, parts: string[], method: string, store: Store, now: number, opts: Options): Promise<Res> {
+  adminAuth(req, opts);
+
+  // GET /admin/reports → every open report, grouped by receipt
+  if (parts[1] === 'reports' && method === 'GET') {
+    const items = [];
+    for (const leagueId of await store.listReportMarkers()) {
+      const got = await store.get(leagueId);
+      if (!got) { await store.setReportMarker(leagueId, false); continue; }
+      const l = got.doc.league;
+      const byReceipt = new Map<string, ReturnType<typeof openReports>>();
+      for (const rep of openReports(l)) byReceipt.set(rep.receiptId, [...(byReceipt.get(rep.receiptId) ?? []), rep]);
+      for (const [receiptId, reps] of byReceipt) {
+        const r = l.receipts.find((x) => x.id === receiptId);
+        if (!r) continue;
+        const cat = categoryOf(l, r.categoryId);
+        items.push({
+          leagueId, leagueName: l.name, receiptId, reportId: reps[0].id,
+          reasons: reps.map((x) => x.reason), firstReportedAt: Math.min(...reps.map((x) => x.at)),
+          memberId: r.memberId, memberName: nameOf(l, r.memberId),
+          what: `${cat?.icon ?? ''} ${cat?.name ?? ''} · ${fmtValue(r.value, cat?.unit)}`, note: r.note,
+          flagged: !!r.flagged, mediaType: r.mediaType,
+          mediaUrl: r.mediaId ? await store.mediaUrl(leagueId, r.mediaId) : undefined,
+          postedAt: r.createdAt,
+        });
+      }
+    }
+    items.sort((a, b) => a.firstReportedAt - b.firstReportedAt);
+    return { status: 200, body: { items } };
+  }
+
+  // POST /admin/leagues/:id/moderate {type: remove|dismiss|kick, receiptId|reportId|memberId}
+  if (parts[1] === 'leagues' && parts[3] === 'moderate' && method === 'POST') {
+    const leagueId = parts[2];
+    if (!ID.test(leagueId ?? '')) throw new HttpError(404, 'No such league.');
+    const b = parse(req.body);
+    let media: string[] = [];
+    const { doc } = await mutate(store, leagueId, now, (d) => {
+      if (b.type === 'remove') {
+        const m = removeReceipt(d.league, String(b.receiptId), 'belted', now);
+        media = m ? [m] : [];
+      } else if (b.type === 'dismiss') {
+        dismissReport(d.league, String(b.reportId), 'belted', now);
+      } else if (b.type === 'kick') {
+        const id = String(b.memberId);
+        media = removeMember(d.league, id, now, 'removed');
+        delete d.auth[id];
+        delete d.prefs[id];
+        for (const rep of d.league.reports) {
+          if (!d.league.receipts.some((r) => r.id === rep.receiptId) && (rep.status ?? 'open') === 'open') {
+            rep.status = 'removed'; rep.resolvedAt = now; rep.resolvedBy = 'belted';
+          }
+        }
+      } else {
+        throw new HttpError(400, 'Unknown moderation action.');
+      }
+    });
+    await store.deleteMedia(leagueId, media);
+    await syncMarker(store, doc);
     return { status: 200, body: { ok: true } };
   }
 

@@ -164,7 +164,7 @@ function Belts({ onChallenge }: { onChallenge: (to: string, template: string) =>
 
 function ChallengeSheet({ prefill, onClose }: { prefill: ChallengePrefill; onClose: () => void }) {
   const { league, run, toast, me } = useLeague();
-  const others = league.members.filter((m) => m.id !== me && !league.blocked.includes(m.id));
+  const others = league.members.filter((m) => m.id !== me && !m.left && !league.blocked.includes(m.id));
   const [to, setTo] = useState(prefill.to && prefill.to !== me ? prefill.to : others[0]?.id);
   const [tplKey, setTplKey] = useState(prefill.template ?? 'trivia');
   const [stakes, setStakes] = useState<number>(25);

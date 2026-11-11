@@ -40,7 +40,8 @@ const fn = new NodejsFunction(stack, 'Api', {
   architecture: lambda.Architecture.ARM_64,
   memorySize: 512,
   timeout: Duration.seconds(15),
-  environment: { BUCKET: bucket.bucketName },
+  // Only a hash of the admin key is deployed. The key itself stays in ../.admin-key on Som's machine.
+  environment: { BUCKET: bucket.bucketName, ADMIN_KEY_SHA256: process.env.ADMIN_KEY_SHA256 ?? '' },
   logGroup: new logs.LogGroup(stack, 'ApiLogs', { retention: logs.RetentionDays.ONE_MONTH, removalPolicy: RemovalPolicy.DESTROY }),
   bundling: { minify: true, target: 'node22', externalModules: [] },
 });
@@ -51,7 +52,7 @@ const url = fn.addFunctionUrl({
   authType: lambda.FunctionUrlAuthType.NONE,
   cors: {
     allowedOrigins: ORIGINS,
-    allowedHeaders: ['authorization', 'content-type'],
+    allowedHeaders: ['authorization', 'content-type', 'x-admin-key'],
     allowedMethods: [lambda.HttpMethod.GET, lambda.HttpMethod.POST],
     maxAge: Duration.hours(1),
   },

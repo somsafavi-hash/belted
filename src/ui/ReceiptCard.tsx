@@ -25,7 +25,7 @@ export function ReceiptCard({ r }: { r: Receipt }) {
     const { error } = await run({ type: 'receipt.report', receiptId: r.id, reason });
     setMenu(false);
     if (error) return toast(error);
-    toast('Reported and hidden for you. Thanks for keeping it clean.');
+    toast('Reported and hidden for you. The league owner and Belted review reports within 24 hours.');
   }
 
   async function block() {
@@ -44,7 +44,7 @@ export function ReceiptCard({ r }: { r: Receipt }) {
           <small className="muted"> {cat?.icon} {cat?.name} · {ago(now - r.createdAt)}</small>
           <div className="value mono">{fmtValue(r.value, cat?.unit)}</div>
         </div>
-        <Status r={r} now={now} />
+        {r.flagged ? <span className="chip red">Under review</span> : <Status r={r} now={now} />}
         {!mine && <button className="dots" onClick={() => setMenu(true)} aria-label="More options">⋯</button>}
       </div>
 
@@ -60,7 +60,9 @@ export function ReceiptCard({ r }: { r: Receipt }) {
         </div>
       )}
 
-      {mine || r.status !== 'open' ? (
+      {r.flagged ? (
+        <div className="tally muted small">{mine ? 'People reported this. It’s hidden from the league until the owner reviews it.' : 'Reported. Hidden from the league until reviewed.'}</div>
+      ) : mine || r.status !== 'open' ? (
         <div className="tally muted small">
           ✅ {t.legit} legit · 🧢 {t.cap} cap{r.status === 'open' ? ` · ${voters - t.legit - t.cap} still to vote` : ''}
           {mine && r.status === 'legit' && (r.scored ? ' · +10 to you' : ' · already scored today in this category')}

@@ -25,6 +25,9 @@ export interface Store {
   mediaExists(leagueId: string, mediaId: string): Promise<boolean>;
   mediaUrl(leagueId: string, mediaId: string): Promise<string>;
   deleteMedia(leagueId: string, mediaIds: string[]): Promise<void>;
+  /** A small marker per league with open reports, so the admin queue doesn't scan every league. */
+  setReportMarker(leagueId: string, open: boolean): Promise<void>;
+  listReportMarkers(): Promise<string[]>;
 }
 
 export const MAX_UPLOAD_BYTES = 60 * 1024 * 1024;

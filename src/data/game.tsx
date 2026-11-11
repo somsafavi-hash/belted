@@ -112,7 +112,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     sessionRef.current = undefined;
     setSession(undefined);
     setOnline(undefined);
-    toast('You were signed out of that league. Open the invite link again to rejoin.');
+    toast('You’re no longer in that league. Start a new one or open an invite link.');
   }, [toast]);
 
   const demoNow = () => Date.now() + offsetRef.current;
@@ -140,7 +140,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
     try {
       setView(await api.state(s));
     } catch (e) {
-      if (e instanceof ApiError && e.status === 401) signedOut();
+      // 401: removed or left. 404: the league is gone. Either way this phone isn't in it anymore.
+      if (e instanceof ApiError && (e.status === 401 || e.status === 404)) signedOut();
       else setOffline(true);
     }
   }, [setView, signedOut]);
