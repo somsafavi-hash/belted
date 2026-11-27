@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" fill="#0c0c0b"/>
+  <rect x="-20" y="206" width="552" height="100" fill="none" stroke="#e6b84c" stroke-width="10"/>
+  <rect x="116" y="96" width="280" height="320" rx="64" fill="#e6b84c"/>
+  <path transform="translate(156 126)" fill="#0c0c0b" fill-rule="evenodd" d="M0 0H120Q190 0 190 65Q190 110 150 125Q200 140 200 195Q200 260 125 260H0ZM62 50H110Q130 50 130 77Q130 104 110 104H62ZM62 152H115Q138 152 138 181Q138 210 115 210H62Z"/>
+</svg>
